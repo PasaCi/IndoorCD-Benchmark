@@ -1,0 +1,49 @@
+{
+  "timestamp": "20260109_002604",
+  "dataset_path": "C:\\Users\\topra\\Desktop\\Ph.D\\New Datasets\\Files\\Dataset",
+  "iou_threshold": 0.25,
+  "seed": 42,
+  "methods": {
+    "multi_stage": {
+      "method": "Multi-Stage (Ours)",
+      "params": {
+        "distance_threshold": 0.06,
+        "proximity_threshold": 0.03,
+        "boundary_threshold": 0.1,
+        "eps": 0.015,
+        "min_samples": 5,
+        "tolerance_factor": 1.05,
+        "roi_scale": 0.96,
+        "roi_coverage_thresh": 0.5,
+        "box_budget_per_class": 5
+      },
+      "num_scenes": 123,
+      "num_errors": 0,
+      "avg_time_per_scene": 2.8357794284820557,
+      "total_time": 348.80086970329285,
+      "metrics": {
+        "precision": {
+          "Add": 0.08671586715867159,
+          "Remove": 0.0958904109589041
+        },
+        "recall": {
+          "Add": 0.3671875,
+          "Remove": 0.4049586776859504
+        },
+        "f1": {
+          "Add": 0.14029850746268657,
+          "Remove": 0.15506329113924053
+        },
+        "macro_precision": 0.09130313905878784,
+        "macro_recall": 0.3860730888429752,
+        "macro_f1": 0.14768089930096356,
+        "mean_iou_matched": 0.5146393445068389,
+        "total_tp": 96,
+        "total_fp": 957,
+        "total_fn": 153,
+        "num_scenes": 123
+      },
+      "predictions_dir": "test_results\\predictions_multi_stage_20260109_002604"
+    }
+  }
+}
