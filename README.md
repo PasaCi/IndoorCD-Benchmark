@@ -49,7 +49,7 @@ IndoorCD is a comprehensive benchmark dataset for evaluating 3D point cloud chan
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/IndoorCD-Benchmark.git
+git clone https://github.com/PasaCi/IndoorCD-Benchmark.git
 cd IndoorCD-Benchmark
 
 # Create virtual environment (recommended)
