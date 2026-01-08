@@ -733,20 +733,30 @@ class PointLevelEvaluator:
         Returns:
             ref_pred, ref_gt, comp_pred, comp_gt label arrays
         """
+        def get_box_label(box):
+            """Extract label from box (handles both DetectedBox and dict)."""
+            if hasattr(box, 'label'):
+                return box.label
+            elif isinstance(box, dict):
+                return box.get('label', box.get('name', ''))
+            return ''
+        
         # Reference points: Remove boxes mark removed points
-        ref_gt = compute_point_labels_from_boxes(reference, 
-            [b for b in gt_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Remove'])
-        ref_pred = compute_point_labels_from_boxes(reference,
-            [b for b in pred_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Remove'])
+        gt_remove_boxes = [b for b in gt_boxes if get_box_label(b) == 'Remove']
+        pred_remove_boxes = [b for b in pred_boxes if get_box_label(b) == 'Remove']
+        
+        ref_gt = compute_point_labels_from_boxes(reference, gt_remove_boxes)
+        ref_pred = compute_point_labels_from_boxes(reference, pred_remove_boxes)
         # Remap: In reference, "Remove" points should be labeled as 2
         ref_gt = np.where(ref_gt > 0, 2, 0)
         ref_pred = np.where(ref_pred > 0, 2, 0)
         
         # Comparison points: Add boxes mark added points
-        comp_gt = compute_point_labels_from_boxes(comparison,
-            [b for b in gt_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Add'])
-        comp_pred = compute_point_labels_from_boxes(comparison,
-            [b for b in pred_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Add'])
+        gt_add_boxes = [b for b in gt_boxes if get_box_label(b) == 'Add']
+        pred_add_boxes = [b for b in pred_boxes if get_box_label(b) == 'Add']
+        
+        comp_gt = compute_point_labels_from_boxes(comparison, gt_add_boxes)
+        comp_pred = compute_point_labels_from_boxes(comparison, pred_add_boxes)
         # Remap: In comparison, "Add" points should be labeled as 1
         comp_gt = np.where(comp_gt > 0, 1, 0)
         comp_pred = np.where(comp_pred > 0, 1, 0)
