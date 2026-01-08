@@ -63,7 +63,7 @@ pip install -r requirements.txt
 
 ### Download Dataset
 
-Download the IndoorCD dataset from ???
+Download the IndoorCD dataset from (link-coming-soon) (Available after paper acceptance)
 
 ```bash
 # Expected directory structure
