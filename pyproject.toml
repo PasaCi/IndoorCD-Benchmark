@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "indoorcd"
+version = "1.0.0"
+description = "A Benchmark for 3D Point Cloud Change Detection in Indoor Environments"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "IndoorCD Authors", email = "author@university.edu"}
+]
+keywords = [
+    "point cloud",
+    "change detection", 
+    "3D",
+    "indoor",
+    "benchmark",
+    "computer vision"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+dependencies = [
+    "numpy>=1.21.0,<2.0.0",
+    "scipy>=1.7.0",
+    "scikit-learn>=1.0.0",
+    "open3d>=0.17.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.62.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "isort>=5.10.0",
+]
+vis = [
+    "matplotlib>=3.5.0",
+]
+dl = [
+    "torch>=2.0.0",
+    "torch-geometric>=2.3.0",
+]
+all = [
+    "indoorcd[dev,vis,dl]",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/IndoorCD-Benchmark"
+Documentation = "https://github.com/yourusername/IndoorCD-Benchmark#readme"
+Repository = "https://github.com/yourusername/IndoorCD-Benchmark.git"
+Issues = "https://github.com/yourusername/IndoorCD-Benchmark/issues"
+
+[project.scripts]
+indoorcd-benchmark = "run_benchmark:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"

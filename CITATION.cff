@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this software or dataset, please cite it as below."
+type: software
+title: "IndoorCD: A Benchmark for 3D Point Cloud Change Detection in Indoor Environments"
+version: 1.0.0
+date-released: 2025-01-01
+url: "https://github.com/yourusername/IndoorCD-Benchmark"
+repository-code: "https://github.com/yourusername/IndoorCD-Benchmark"
+license: MIT
+keywords:
+  - point cloud
+  - change detection
+  - 3D computer vision
+  - indoor environments
+  - benchmark
+  - deep learning
+authors:
+  - family-names: "Author"
+    given-names: "First"
+    email: "first.author@university.edu"
+    affiliation: "University Name"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Author"
+    given-names: "Second"
+    email: "second.author@university.edu"
+    affiliation: "University Name"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Author"
+      given-names: "First"
+    - family-names: "Author"
+      given-names: "Second"
+  title: "IndoorCD: A Benchmark Dataset and Methods for 3D Point Cloud Change Detection in Indoor Environments"
+  journal: "IEEE Access"
+  year: 2025
+  volume: XX
+  start: XXXXX
+  end: XXXXX
+  doi: "10.1109/ACCESS.2025.XXXXXXX"

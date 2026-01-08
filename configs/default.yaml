@@ -1,0 +1,96 @@
+# IndoorCD Benchmark Configuration
+# =================================
+# Default parameters for reproducible results
+
+# Dataset settings
+dataset:
+  # Data split ratios (must sum to 1.0)
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  
+  # Random seed for reproducibility
+  seed: 42
+  
+  # Split by room (recommended) vs random pairs
+  split_by_room: true
+
+# Evaluation settings
+evaluation:
+  # IoU threshold for box matching
+  iou_threshold: 0.25
+  
+  # Minimum points for valid detection
+  min_points: 10
+  
+  # Classes to evaluate
+  classes: ["NoChange", "Add", "Remove"]
+
+# Method parameters
+methods:
+  # Distance-based baseline
+  distance:
+    distance_threshold: 0.05
+    cluster_eps: 0.05
+    min_cluster_points: 50
+  
+  # Octree-based baseline
+  octree:
+    voxel_size: 0.05
+    min_points_per_voxel: 3
+    cluster_eps: 0.08
+    min_cluster_points: 30
+  
+  # ICP-based baseline
+  icp:
+    distance_threshold: 0.05
+    icp_threshold: 0.1
+    max_iterations: 50
+    cluster_eps: 0.05
+    min_cluster_points: 50
+  
+  # RANSAC-based baseline
+  ransac:
+    distance_threshold: 0.05
+    ransac_n: 3
+    num_iterations: 1000
+    inlier_threshold: 0.02
+    cluster_eps: 0.05
+    min_cluster_points: 50
+  
+  # Multi-Stage (Proposed) - OPTIMIZED PARAMETERS
+  multi_stage:
+    # Stage 1: Coarse detection
+    distance_threshold: 0.06
+    
+    # Stage 2: Refinement
+    proximity_threshold: 0.03
+    boundary_threshold: 0.10
+    
+    # Stage 3: Clustering
+    eps: 0.015
+    min_samples: 5
+    
+    # Stage 4: Box fitting
+    tolerance_factor: 1.05
+    roi_scale: 0.96
+    roi_coverage_thresh: 0.5
+    box_budget_per_class: 5
+    
+    # Optional: Enable box merging
+    enable_merging: true
+    merge_iou_threshold: 0.3
+
+# Output settings
+output:
+  # Save predictions as JSON
+  save_predictions: true
+  
+  # Save visualizations
+  save_visualizations: false
+  
+  # Generate LaTeX tables
+  generate_latex: true
+  
+  # Verbose output
+  verbose: true

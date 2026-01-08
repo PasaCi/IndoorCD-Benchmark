@@ -1,0 +1,26 @@
+# IndoorCD Benchmark Requirements
+# Install: pip install -r requirements.txt
+
+# Core dependencies
+numpy>=1.21.0,<2.0.0
+scipy>=1.7.0
+scikit-learn>=1.0.0
+
+# Point cloud processing
+open3d>=0.17.0
+
+# Data handling
+pyyaml>=6.0
+tqdm>=4.62.0
+
+# Visualization (optional)
+matplotlib>=3.5.0
+
+# Deep learning (optional - for DL baselines)
+# torch>=2.0.0
+# torch-geometric>=2.3.0
+
+# Development (optional)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0
