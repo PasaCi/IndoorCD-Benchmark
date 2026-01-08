@@ -483,7 +483,7 @@ class BenchmarkEvaluator:
         latex = "\\begin{table}[htbp]\n"
         latex += "\\centering\n"
         latex += "\\caption{Change Detection Results on IndoorCD (IoU threshold = "
-        latex += f"{self.iou_threshold})}}}\n"
+        latex += f"{self.iou_threshold})}}\n"
         latex += "\\label{tab:results}\n"
         latex += "\\begin{tabular}{l|cc|cc|ccc}\n"
         latex += "\\toprule\n"
