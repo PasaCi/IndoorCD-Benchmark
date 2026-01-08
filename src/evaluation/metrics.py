@@ -544,6 +544,270 @@ class BenchmarkEvaluator:
         return latex
 
 
+# =============================================================================
+# POINT-LEVEL EVALUATION
+# =============================================================================
+
+@dataclass
+class PointLevelMetrics:
+    """Point-level evaluation metrics."""
+    overall_accuracy: float = 0.0
+    mean_accuracy: float = 0.0
+    mean_iou: float = 0.0
+    
+    # Per-class metrics
+    precision: Dict[str, float] = field(default_factory=dict)
+    recall: Dict[str, float] = field(default_factory=dict)
+    f1: Dict[str, float] = field(default_factory=dict)
+    iou: Dict[str, float] = field(default_factory=dict)
+    
+    # Macro averages
+    macro_precision: float = 0.0
+    macro_recall: float = 0.0
+    macro_f1: float = 0.0
+    
+    # Confusion matrix
+    confusion_matrix: Optional[np.ndarray] = None
+    
+    def to_dict(self) -> Dict:
+        return {
+            'overall_accuracy': self.overall_accuracy,
+            'mean_accuracy': self.mean_accuracy,
+            'mean_iou': self.mean_iou,
+            'precision': self.precision,
+            'recall': self.recall,
+            'f1': self.f1,
+            'iou': self.iou,
+            'macro_precision': self.macro_precision,
+            'macro_recall': self.macro_recall,
+            'macro_f1': self.macro_f1,
+        }
+
+
+def compute_point_labels_from_boxes(
+    points: np.ndarray,
+    boxes: List,
+    default_label: int = 0
+) -> np.ndarray:
+    """
+    Assign point-level labels based on bounding boxes.
+    
+    Args:
+        points: (N, 3) point cloud
+        boxes: List of detected/ground truth boxes
+        default_label: Label for points not in any box (0 = NoChange)
+    
+    Returns:
+        (N,) array of labels: 0=NoChange, 1=Add, 2=Remove
+    """
+    labels = np.full(len(points), default_label, dtype=int)
+    
+    label_map = {'Add': 1, 'Remove': 2}
+    
+    for box in boxes:
+        if hasattr(box, 'min_bound'):
+            min_b = box.min_bound
+            max_b = box.max_bound
+            box_label = label_map.get(box.label, 0)
+        elif isinstance(box, dict):
+            if 'min' in box:
+                min_b = np.array(box['min'])
+                max_b = np.array(box['max'])
+            elif 'vertices' in box:
+                vertices = np.array(box['vertices'])
+                min_b = vertices.min(axis=0)
+                max_b = vertices.max(axis=0)
+            else:
+                continue
+            box_label = label_map.get(box.get('label', box.get('name', '')), 0)
+        else:
+            continue
+        
+        # Find points inside box
+        mask = np.all((points >= min_b) & (points <= max_b), axis=1)
+        labels[mask] = box_label
+    
+    return labels
+
+
+def evaluate_point_level(
+    pred_labels: np.ndarray,
+    gt_labels: np.ndarray,
+    class_names: List[str] = ['NoChange', 'Add', 'Remove']
+) -> PointLevelMetrics:
+    """
+    Evaluate point-level predictions.
+    
+    Args:
+        pred_labels: (N,) predicted labels (0=NoChange, 1=Add, 2=Remove)
+        gt_labels: (N,) ground truth labels
+        class_names: Names for each class
+    
+    Returns:
+        PointLevelMetrics with all computed metrics
+    """
+    from sklearn.metrics import confusion_matrix as sklearn_cm
+    
+    n_classes = len(class_names)
+    
+    # Compute confusion matrix
+    conf_mat = sklearn_cm(gt_labels, pred_labels, labels=list(range(n_classes)))
+    
+    # Overall Accuracy
+    total = conf_mat.sum()
+    oa = np.diag(conf_mat).sum() / total if total > 0 else 0.0
+    
+    # Per-class metrics
+    precision = {}
+    recall = {}
+    f1 = {}
+    iou = {}
+    accuracies = []
+    
+    for i, name in enumerate(class_names):
+        tp = conf_mat[i, i]
+        fp = conf_mat[:, i].sum() - tp
+        fn = conf_mat[i, :].sum() - tp
+        
+        # Precision
+        p = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        precision[name] = p
+        
+        # Recall
+        r = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        recall[name] = r
+        
+        # F1
+        f1[name] = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+        
+        # IoU
+        denom = tp + fp + fn
+        iou[name] = tp / denom if denom > 0 else 0.0
+        
+        # Per-class accuracy
+        class_total = conf_mat[i, :].sum()
+        accuracies.append(tp / class_total if class_total > 0 else 0.0)
+    
+    # Macro averages (excluding NoChange for change detection focus)
+    change_classes = [name for name in class_names if name != 'NoChange']
+    macro_p = np.mean([precision[c] for c in change_classes])
+    macro_r = np.mean([recall[c] for c in change_classes])
+    macro_f1 = np.mean([f1[c] for c in change_classes])
+    
+    return PointLevelMetrics(
+        overall_accuracy=oa * 100,
+        mean_accuracy=np.mean(accuracies) * 100,
+        mean_iou=np.mean(list(iou.values())) * 100,
+        precision={k: v * 100 for k, v in precision.items()},
+        recall={k: v * 100 for k, v in recall.items()},
+        f1={k: v * 100 for k, v in f1.items()},
+        iou={k: v * 100 for k, v in iou.items()},
+        macro_precision=macro_p * 100,
+        macro_recall=macro_r * 100,
+        macro_f1=macro_f1 * 100,
+        confusion_matrix=conf_mat
+    )
+
+
+class PointLevelEvaluator:
+    """
+    Evaluator for point-level change detection.
+    
+    Computes metrics by assigning each point to a class based on 
+    whether it falls inside Add/Remove bounding boxes.
+    """
+    
+    def __init__(self):
+        self.results = {}
+    
+    def evaluate_scene(
+        self,
+        reference: np.ndarray,
+        comparison: np.ndarray,
+        pred_boxes: List,
+        gt_boxes: List
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Evaluate a single scene at point level.
+        
+        Returns:
+            ref_pred, ref_gt, comp_pred, comp_gt label arrays
+        """
+        # Reference points: Remove boxes mark removed points
+        ref_gt = compute_point_labels_from_boxes(reference, 
+            [b for b in gt_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Remove'])
+        ref_pred = compute_point_labels_from_boxes(reference,
+            [b for b in pred_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Remove'])
+        # Remap: In reference, "Remove" points should be labeled as 2
+        ref_gt = np.where(ref_gt > 0, 2, 0)
+        ref_pred = np.where(ref_pred > 0, 2, 0)
+        
+        # Comparison points: Add boxes mark added points
+        comp_gt = compute_point_labels_from_boxes(comparison,
+            [b for b in gt_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Add'])
+        comp_pred = compute_point_labels_from_boxes(comparison,
+            [b for b in pred_boxes if (b.get('label') if isinstance(b, dict) else b.label) == 'Add'])
+        # Remap: In comparison, "Add" points should be labeled as 1
+        comp_gt = np.where(comp_gt > 0, 1, 0)
+        comp_pred = np.where(comp_pred > 0, 1, 0)
+        
+        return ref_pred, ref_gt, comp_pred, comp_gt
+    
+    def evaluate_dataset(
+        self,
+        method_name: str,
+        all_ref_points: List[np.ndarray],
+        all_comp_points: List[np.ndarray],
+        all_pred_boxes: List[List],
+        all_gt_boxes: List[List]
+    ) -> PointLevelMetrics:
+        """
+        Evaluate entire dataset at point level.
+        """
+        all_pred = []
+        all_gt = []
+        
+        for ref, comp, pred_boxes, gt_boxes in zip(
+            all_ref_points, all_comp_points, all_pred_boxes, all_gt_boxes
+        ):
+            ref_pred, ref_gt, comp_pred, comp_gt = self.evaluate_scene(
+                ref, comp, pred_boxes, gt_boxes
+            )
+            
+            all_pred.extend(ref_pred.tolist())
+            all_pred.extend(comp_pred.tolist())
+            all_gt.extend(ref_gt.tolist())
+            all_gt.extend(comp_gt.tolist())
+        
+        metrics = evaluate_point_level(
+            np.array(all_pred), 
+            np.array(all_gt)
+        )
+        
+        self.results[method_name] = metrics
+        return metrics
+    
+    def generate_report(self) -> str:
+        """Generate text report for point-level results."""
+        lines = [
+            "=" * 70,
+            "Point-Level Evaluation Results",
+            "=" * 70,
+        ]
+        
+        for method, m in self.results.items():
+            lines.append(f"\n{method}:")
+            lines.append(f"  Overall Accuracy: {m.overall_accuracy:.1f}%")
+            lines.append(f"  Mean IoU: {m.mean_iou:.1f}%")
+            lines.append(f"  Macro F1 (Add/Remove): {m.macro_f1:.1f}%")
+            lines.append(f"  Per-class:")
+            for cls in ['NoChange', 'Add', 'Remove']:
+                if cls in m.f1:
+                    lines.append(f"    {cls}: P={m.precision[cls]:.1f}%, R={m.recall[cls]:.1f}%, F1={m.f1[cls]:.1f}%")
+        
+        return "\n".join(lines)
+
+
 if __name__ == "__main__":
     # Test evaluation
     print("Testing evaluation metrics...")

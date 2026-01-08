@@ -180,7 +180,8 @@ class IndoorCDBenchmark:
         indices: List[int],
         params: Optional[Dict] = None,
         save_predictions: bool = True,
-        verbose: bool = True
+        verbose: bool = True,
+        eval_type: str = 'both'
     ) -> Dict:
         """
         Run a single method on specified indices.
@@ -191,6 +192,7 @@ class IndoorCDBenchmark:
             params: Method parameters (uses defaults if None)
             save_predictions: Whether to save prediction JSONs
             verbose: Print progress
+            eval_type: 'box', 'point', or 'both'
         
         Returns:
             Results dictionary
@@ -209,6 +211,7 @@ class IndoorCDBenchmark:
             print(f"\nRunning {detector.name}...")
             print(f"  Params: {params}")
             print(f"  Processing {len(indices)} scene pairs...")
+            print(f"  Evaluation type: {eval_type}")
         
         # Prepare output directory for predictions
         pred_dir = None
@@ -219,6 +222,10 @@ class IndoorCDBenchmark:
         # Process each scene pair
         all_predictions = []
         all_ground_truths = []
+        all_ref_points = []
+        all_comp_points = []
+        all_pred_boxes = []
+        all_gt_boxes = []
         times = []
         errors = []
         
@@ -249,6 +256,18 @@ class IndoorCDBenchmark:
                 # Get ground truth
                 all_ground_truths.append(data['labels'])
                 
+                # Store for point-level evaluation
+                if eval_type in ['point', 'both']:
+                    all_ref_points.append(data['reference'][:, :3])
+                    all_comp_points.append(data['comparison'][:, :3])
+                    all_pred_boxes.append(boxes)
+                    # Parse GT boxes
+                    gt_boxes_parsed = []
+                    if data['labels'] and 'objects' in data['labels']:
+                        for obj in data['labels']['objects']:
+                            gt_boxes_parsed.append(obj)
+                    all_gt_boxes.append(gt_boxes_parsed)
+                
                 # Save prediction
                 if pred_dir:
                     pred_file = pred_dir / f"{data['pair_id']}.json"
@@ -260,13 +279,6 @@ class IndoorCDBenchmark:
                 if verbose:
                     print(f"    Error at {idx}: {e}")
         
-        # Evaluate
-        metrics = self.evaluator.evaluate_method(
-            method_name,
-            all_predictions,
-            all_ground_truths
-        )
-        
         # Compile results
         results = {
             'method': detector.name,
@@ -275,13 +287,46 @@ class IndoorCDBenchmark:
             'num_errors': len(errors),
             'avg_time_per_scene': np.mean(times) if times else 0,
             'total_time': sum(times),
-            'metrics': metrics.to_dict(),
             'predictions_dir': str(pred_dir) if pred_dir else None,
+            'eval_type': eval_type,
         }
         
+        # Box-level evaluation
+        if eval_type in ['box', 'both']:
+            box_metrics = self.evaluator.evaluate_method(
+                method_name,
+                all_predictions,
+                all_ground_truths
+            )
+            results['box_level_metrics'] = box_metrics.to_dict()
+            
+            if verbose:
+                print(f"\n  Box-Level Results (IoU={self.iou_threshold}):")
+                print(f"    {box_metrics}")
+        
+        # Point-level evaluation
+        if eval_type in ['point', 'both']:
+            from evaluation.metrics import PointLevelEvaluator
+            point_evaluator = PointLevelEvaluator()
+            point_metrics = point_evaluator.evaluate_dataset(
+                method_name,
+                all_ref_points,
+                all_comp_points,
+                all_pred_boxes,
+                all_gt_boxes
+            )
+            results['point_level_metrics'] = point_metrics.to_dict()
+            
+            if verbose:
+                print(f"\n  Point-Level Results:")
+                print(f"    Overall Accuracy: {point_metrics.overall_accuracy:.1f}%")
+                print(f"    Macro F1 (Add/Remove): {point_metrics.macro_f1:.1f}%")
+                for cls in ['NoChange', 'Add', 'Remove']:
+                    if cls in point_metrics.f1:
+                        print(f"    {cls}: P={point_metrics.precision[cls]:.1f}%, R={point_metrics.recall[cls]:.1f}%, F1={point_metrics.f1[cls]:.1f}%")
+        
         if verbose:
-            print(f"  Completed in {results['total_time']:.1f}s")
-            print(f"  {metrics}")
+            print(f"\n  Completed in {results['total_time']:.1f}s")
         
         self.results[method_name] = results
         return results
@@ -290,7 +335,8 @@ class IndoorCDBenchmark:
         self,
         indices: Optional[List[int]] = None,
         methods: Optional[List[str]] = None,
-        save_predictions: bool = True
+        save_predictions: bool = True,
+        eval_type: str = 'both'
     ) -> Dict:
         """
         Run all methods on specified indices.
@@ -299,6 +345,7 @@ class IndoorCDBenchmark:
             indices: Dataset indices (uses test set if None)
             methods: List of method names (uses all if None)
             save_predictions: Whether to save predictions
+            eval_type: 'box', 'point', or 'both'
         
         Returns:
             All results
@@ -314,6 +361,7 @@ class IndoorCDBenchmark:
         print(f"\n{'='*60}")
         print(f"Running benchmark on {len(indices)} scene pairs")
         print(f"Methods: {methods}")
+        print(f"Evaluation type: {eval_type}")
         print(f"{'='*60}")
         
         for method_name in methods:
@@ -321,7 +369,8 @@ class IndoorCDBenchmark:
                 self.run_method(
                     method_name,
                     indices,
-                    save_predictions=save_predictions
+                    save_predictions=save_predictions,
+                    eval_type=eval_type
                 )
             except Exception as e:
                 print(f"Error running {method_name}: {e}")
@@ -436,45 +485,88 @@ class IndoorCDBenchmark:
             lines.append("No results available.")
             return "\n".join(lines)
         
-        # Overall comparison table
-        lines.append("Overall Results:")
-        lines.append("-" * 70)
-        lines.append(f"{'Method':<20} {'Precision':>10} {'Recall':>10} {'F1':>10} {'mIoU':>10}")
-        lines.append("-" * 70)
+        # Check what evaluation types are available
+        sample_result = list(self.results.values())[0]
+        has_box = 'box_level_metrics' in sample_result
+        has_point = 'point_level_metrics' in sample_result
         
-        # Sort by F1
-        sorted_methods = sorted(
-            self.results.keys(),
-            key=lambda m: self.results[m]['metrics']['macro_f1'],
-            reverse=True
-        )
-        
-        for method in sorted_methods:
-            m = self.results[method]['metrics']
-            lines.append(
-                f"{method:<20} "
-                f"{m['macro_precision']:>10.4f} "
-                f"{m['macro_recall']:>10.4f} "
-                f"{m['macro_f1']:>10.4f} "
-                f"{m['mean_iou_matched']:>10.4f}"
-            )
-        
-        lines.append("-" * 70)
-        
-        # Per-class breakdown
-        lines.append("\nPer-Class Performance:")
-        lines.append("-" * 70)
-        
-        for method in sorted_methods:
-            m = self.results[method]['metrics']
-            lines.append(f"\n{method}:")
+        # Box-Level Results
+        if has_box:
+            lines.append("=" * 70)
+            lines.append("BOX-LEVEL EVALUATION (IoU-based)")
+            lines.append("=" * 70)
+            lines.append(f"{'Method':<20} {'Precision':>10} {'Recall':>10} {'F1':>10} {'mIoU':>10}")
+            lines.append("-" * 70)
             
-            for cls in ['Add', 'Remove']:
-                if cls in m['precision']:
+            sorted_methods = sorted(
+                self.results.keys(),
+                key=lambda m: self.results[m].get('box_level_metrics', {}).get('macro_f1', 0),
+                reverse=True
+            )
+            
+            for method in sorted_methods:
+                m = self.results[method].get('box_level_metrics', {})
+                if m:
                     lines.append(
-                        f"  {cls}: P={m['precision'][cls]:.3f}, "
-                        f"R={m['recall'][cls]:.3f}, F1={m['f1'][cls]:.3f}"
+                        f"{method:<20} "
+                        f"{m.get('macro_precision', 0):>10.4f} "
+                        f"{m.get('macro_recall', 0):>10.4f} "
+                        f"{m.get('macro_f1', 0):>10.4f} "
+                        f"{m.get('mean_iou_matched', 0):>10.4f}"
                     )
+            
+            lines.append("-" * 70)
+            lines.append("\nPer-Class (Box-Level):")
+            for method in sorted_methods:
+                m = self.results[method].get('box_level_metrics', {})
+                if m:
+                    lines.append(f"\n{method}:")
+                    for cls in ['Add', 'Remove']:
+                        if cls in m.get('precision', {}):
+                            lines.append(
+                                f"  {cls}: P={m['precision'][cls]:.3f}, "
+                                f"R={m['recall'][cls]:.3f}, F1={m['f1'][cls]:.3f}"
+                            )
+        
+        # Point-Level Results
+        if has_point:
+            lines.append("\n" + "=" * 70)
+            lines.append("POINT-LEVEL EVALUATION")
+            lines.append("=" * 70)
+            lines.append(f"{'Method':<20} {'Accuracy':>10} {'Add F1':>10} {'Remove F1':>10} {'Macro F1':>10}")
+            lines.append("-" * 70)
+            
+            sorted_methods = sorted(
+                self.results.keys(),
+                key=lambda m: self.results[m].get('point_level_metrics', {}).get('macro_f1', 0),
+                reverse=True
+            )
+            
+            for method in sorted_methods:
+                m = self.results[method].get('point_level_metrics', {})
+                if m:
+                    add_f1 = m.get('f1', {}).get('Add', 0)
+                    rem_f1 = m.get('f1', {}).get('Remove', 0)
+                    lines.append(
+                        f"{method:<20} "
+                        f"{m.get('overall_accuracy', 0):>10.1f}% "
+                        f"{add_f1:>10.1f}% "
+                        f"{rem_f1:>10.1f}% "
+                        f"{m.get('macro_f1', 0):>10.1f}%"
+                    )
+            
+            lines.append("-" * 70)
+            lines.append("\nPer-Class (Point-Level):")
+            for method in sorted_methods:
+                m = self.results[method].get('point_level_metrics', {})
+                if m:
+                    lines.append(f"\n{method}:")
+                    for cls in ['NoChange', 'Add', 'Remove']:
+                        if cls in m.get('f1', {}):
+                            lines.append(
+                                f"  {cls}: P={m['precision'][cls]:.1f}%, "
+                                f"R={m['recall'][cls]:.1f}%, F1={m['f1'][cls]:.1f}%"
+                            )
         
         lines.append("\n" + "=" * 70)
         
@@ -523,6 +615,9 @@ Examples:
                         help='Run per-category evaluation')
     parser.add_argument('--no_save_predictions', action='store_true',
                         help='Do not save prediction JSONs')
+    parser.add_argument('--eval_type', type=str, default='both',
+                        choices=['box', 'point', 'both'],
+                        help='Evaluation type: box (box-level IoU), point (point-level), or both')
     
     args = parser.parse_args()
     
@@ -561,12 +656,14 @@ Examples:
         benchmark.run_method(
             args.method,
             benchmark.test_idx,
-            save_predictions=not args.no_save_predictions
+            save_predictions=not args.no_save_predictions,
+            eval_type=args.eval_type
         )
     else:
         benchmark.run_all_methods(
             benchmark.test_idx,
-            save_predictions=not args.no_save_predictions
+            save_predictions=not args.no_save_predictions,
+            eval_type=args.eval_type
         )
     
     # Per-category evaluation if requested
