@@ -63,7 +63,7 @@ pip install -r requirements.txt
 
 ### Download Dataset
 
-Download the IndoorCD dataset from [Google Drive](https://drive.google.com/xxx) or [Zenodo](https://zenodo.org/xxx).
+Download the IndoorCD dataset from ???
 
 ```bash
 # Expected directory structure
@@ -242,7 +242,7 @@ If you use this dataset or code in your research, please cite:
 ```bibtex
 @article{author2025indoorcd,
   title={IndoorCD: A Benchmark Dataset and Methods for 3D Point Cloud Change Detection in Indoor Environments},
-  author={Author, First and Author, Second},
+  author={Ciceklidag, Pasa and others},
   journal={IEEE Access},
   year={2025},
   volume={XX},
@@ -251,11 +251,6 @@ If you use this dataset or code in your research, please cite:
 }
 ```
 
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -270,11 +265,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📧 Contact
 
 For questions or issues, please open a GitHub issue or contact:
-- **Email**: author@university.edu
-- **Project Page**: https://yourwebsite.com/indoorcd
+- **Email**: pasa.ciceklidag@research.uwa.edu.au pasaciceklidag@gmail.com
+- **Project Page**:???
 
 ---
 
 ## 🔄 Updates
 
-- **v1.0.0** (2025-XX-XX): Initial release with benchmark code and dataset
