@@ -38,7 +38,7 @@ IndoorCD is a comprehensive benchmark dataset for evaluating 3D point cloud chan
 ### Key Findings
 
 1. **Classical > Deep Learning**: Our geometric Multi-Stage method outperforms all learning-based approaches
-2. **Remove detection is harder**: All methods show lower performance on Remove vs Add
+2. **Add detection is harder**: Add events are harder to detect than Remove events across all methods.
 3. **Object size matters**: Best detection accuracy (87.7%) for objects in 10-50L volume range
 
 ---
